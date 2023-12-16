@@ -1,0 +1,22 @@
+[
+    {
+        "Author": "BigBard",
+        "Name": "Finding Fantasy",
+        "Description": "/findingfantasy",
+        "InternalName": "findingfantasy",
+        "AssemblyVersion": "1.0",
+        "RepoUrl": "https://github.com/vofgofm/FindingFantasyGit",
+        "ApplicableVersion": "any",
+        "Tags": [ "sample", "plugin", "dating" ],
+        "DalamudApiLevel": 9,
+        "IconUrl": "https://github.com/vofgofm/FindingFantasyGit/raw/main/path_to_icon.png",
+        "IsHide": "False",
+        "IsTestingExclusive": "False",
+        "LastUpdated": 1696380899,
+        "DownloadCount": 0,
+        "DownloadLinkInstall": "https://github.com/vofgofm/FindingFantasyGit/releases/download/1.0/FindingFantasyPlugin.zip",
+        "DownloadLinkTesting": "https://github.com/vofgofm/FindingFantasyGit/releases/download/1.0/FindingFantasyPlugin.zip",
+        "DownloadLinkUpdate": "https://github.com/vofgofm/FindingFantasyGit/releases/download/1.0/FindingFantasyPlugin.zip"
+
+    }
+]
