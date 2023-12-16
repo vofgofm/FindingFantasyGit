@@ -1,0 +1,13 @@
+{
+  "Author": "BigBard",
+  "Name": "Finding Fantasy",
+  "Punchline": "Find your Fantasy",
+  "Description": "/findingfantasy",
+  "InternalName": "findingfantasy",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "sample",
+    "plugin",
+    "goats"
+  ]
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="Dalamud.Plugin.Bootstrap.targets" />
+
+  <PropertyGroup>
+    <Authors></Authors>
+    <Company></Company>
+    <Version>1.0</Version>
+    <Description>WineFinder.</Description>
+    <Copyright></Copyright>
+    <PackageProjectUrl>https://github.com/goatcorp/SamplePlugin</PackageProjectUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="..\Data\goat.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="3.7.300.16" />
+    <PackageReference Include="AWSSDK.Lambda" Version="3.7.303.12" />
+  </ItemGroup>
+</Project>

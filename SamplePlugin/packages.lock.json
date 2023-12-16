@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net7.0-windows7.0": {
+      "AWSSDK.CognitoIdentityProvider": {
+        "type": "Direct",
+        "requested": "[3.7.300.16, )",
+        "resolved": "3.7.300.16",
+        "contentHash": "FkbC8q/61Oz07Ytw1yzHEqNDMJUzapu1qXHAAySSCneUzUKSSzrEkIlI61tqqs6sl5Ms2VSR9NCYUbDrno5aZQ==",
+        "dependencies": {
+          "AWSSDK.Core": "[3.7.300.16, 4.0.0)"
+        }
+      },
+      "AWSSDK.Lambda": {
+        "type": "Direct",
+        "requested": "[3.7.303.12, )",
+        "resolved": "3.7.303.12",
+        "contentHash": "FvvDVVpEjdhwdd1nQVDlxFf6XA+kGkDcOuDJWIXUlw2ptoIgNechDXyGTQpJ70uF54THjH1GFKJ1dAFvJwbaHg==",
+        "dependencies": {
+          "AWSSDK.Core": "[3.7.300.16, 4.0.0)"
+        }
+      },
+      "DalamudPackager": {
+        "type": "Direct",
+        "requested": "[2.1.12, )",
+        "resolved": "2.1.12",
+        "contentHash": "Sc0PVxvgg4NQjcI8n10/VfUQBAS4O+Fw2pZrAqBdRMbthYGeogzu5+xmIGCGmsEZ/ukMOBuAqiNiB5qA3MRalg=="
+      },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "3.7.300.16",
+        "contentHash": "VkZQ+28krl3lDjcaBpc841E/c2MOAqsNZtzc4MymXx7nV94usBqAhc0xXtXfHFvM8JXX8Jxs30GCk28dWolJmg=="
+      }
+    }
+  }
+}

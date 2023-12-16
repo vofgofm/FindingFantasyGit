@@ -1,0 +1,22 @@
+[
+    {
+        "Author": "BigBard",
+        "Name": "Wine Finder",
+        "Description": "/winefinder",
+        "InternalName": "winefinder",
+        "AssemblyVersion": "1.0",
+        "RepoUrl": "https://github.com/vofgofm/WineFinderPlugin",
+        "ApplicableVersion": "any",
+        "Tags": [ "sample", "plugin", "goats" ],
+        "DalamudApiLevel": 9,
+        "IconUrl": "https://github.com/vofgofm/WineFinderPlugin/raw/main/path_to_icon.png",
+        "IsHide": "False",
+        "IsTestingExclusive": "False",
+        "LastUpdated": 1696380899,
+        "DownloadCount": 0,
+        "DownloadLinkInstall": "https://github.com/vofgofm/WineFinderPlugin/releases/download/1.0/WineFinderPlugin.zip",
+        "DownloadLinkTesting": "https://github.com/vofgofm/WineFinderPlugin/releases/download/1.0/WineFinderPlugin.zip",
+        "DownloadLinkUpdate": "https://github.com/vofgofm/WineFinderPlugin/releases/download/1.0/WineFinderPlugin.zip"
+
+    }
+]
