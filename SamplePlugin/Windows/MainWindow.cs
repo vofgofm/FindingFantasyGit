@@ -18,7 +18,7 @@ using Newtonsoft.Json;
 using System.IO;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-
+using System.Net.Http.Headers;
 using System.Collections.Generic;
 
 
@@ -47,6 +47,18 @@ public class LambdaResponse
 
     [JsonProperty("attributes")]
     public UserAttributes Attributes { get; set; }
+}
+
+public class LambdaGetTargetProfileResponse
+{
+    [JsonProperty("userId")]
+    public string UserId { get; set; }
+
+    [JsonProperty("downloadUrl")]
+    public string DownloadUrl { get; set; }
+
+    [JsonProperty("attributes")]
+    public TargetUserAttributes Attributes { get; set; }
 }
 
 
@@ -81,6 +93,19 @@ public class UserAttributes
 
     [JsonProperty("custom:MareCode")]
     public string MareCode { get; set; }
+}
+
+
+public class TargetUserAttributes
+{
+    [JsonProperty("custom:InGameFirstName")]
+    public string InGameFirstName { get; set; }
+
+    [JsonProperty("custom:InGameLastName")]
+    public string InGameLastName { get; set; }
+
+    [JsonProperty("custom:AboutMe")]
+    public string AboutMe { get; set; }
 }
 #endregion
 
@@ -127,8 +152,20 @@ public class MainWindow : Window, IDisposable
     private bool profileUpdateSuccess = false;
     private string profileUpdateMessage = "";
     private string downloadErrorMessage = "";
+    private string downloadTargetErrorMessage = "";
     private IDalamudTextureWrap profileImage;
     private DalamudPluginInterface pluginInterface;
+
+    //Variables we're going to need on the swiping profile tab
+    private bool targetProfileLoaded = false;
+    private bool gettingTargetProfile;
+    private string targetUserID;
+    private string targetUserFirstName;
+    private string targetUserLastName;
+    private string targetUserAboutMe;
+
+    
+    private IDalamudTextureWrap targetProfileImage;
 
 
 
@@ -141,7 +178,7 @@ public class MainWindow : Window, IDisposable
     {
         this.SizeConstraints = new WindowSizeConstraints
         {
-           MinimumSize = new Vector2(800, 450), //change later
+            MinimumSize = new Vector2(800, 450), //change later
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue) //change later
         };
 
@@ -176,7 +213,7 @@ public class MainWindow : Window, IDisposable
         if (isAuthenticated)
         {
             // logic for authenticated users
-            
+
 
             if (ImGui.BeginTabBar("TabBar"))
             {
@@ -227,17 +264,36 @@ public class MainWindow : Window, IDisposable
                     }
 
                     //fetchanddisplayprofile
-                    
+
                     ImGui.EndTabItem();
                 }
 
                 if (ImGui.BeginTabItem("Swiping"))
                 {
-                    // Content for "Find Love" tab
-                    ImGui.Text("Find your match here!");
+                    //
+                    if (gettingTargetProfile)
+                    {
+                        DownloadTargetImageAndGetTargetInfo();
+                        //set targetprofileloaded true when successfull
+                        targetProfileLoaded = true;
+                    }
+                    else
+                    {
+                        if (targetProfileLoaded)
+                        {
 
-                    // Implement logic for finding love
-                    // ...
+                        }
+                        else
+                        {
+                            //DrawTargetProfile
+                            ImGui.Text("Loading");
+                            if (!string.IsNullOrEmpty(downloadTargetErrorMessage))
+                            {
+                                ImGui.TextColored(new Vector4(1, 0, 0, 1), downloadErrorMessage);
+                            }
+                        }
+
+                    }
 
                     ImGui.EndTabItem();
                 }
@@ -263,10 +319,10 @@ public class MainWindow : Window, IDisposable
     }
 
     #region Update And Display Profile
-    
 
-  
-  
+
+
+
 
 
 
@@ -344,7 +400,7 @@ public class MainWindow : Window, IDisposable
 
     private async System.Threading.Tasks.Task DownloadProfileImage()
     {
-        
+
 
         var (preSignedDownloadUrl, errorMessage) = await GetPreSignedDownloadUrl();
         if (!string.IsNullOrEmpty(preSignedDownloadUrl))
@@ -483,7 +539,115 @@ public class MainWindow : Window, IDisposable
     }
 
 
-    #endregion
+
+    private async System.Threading.Tasks.Task RetrieveUserProfile()
+    {
+        if (!isAuthenticated || string.IsNullOrEmpty(accessToken))
+        {
+            displayAboutMe = "User is not authenticated or accessToken is missing.";
+            return;
+        }
+
+        var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+        string profileApiUrl = "https://97xy48sdkh.execute-api.us-east-2.amazonaws.com/FetchProfileStage/fetch";
+
+        try
+        {
+            var response = await httpClient.GetAsync(profileApiUrl);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                var lambdaResponse = JsonConvert.DeserializeObject<LambdaResponse>(content);
+
+                if (lambdaResponse.Message == "User verified")
+                {
+                    UpdateDisplayProfile(lambdaResponse.Attributes);
+                    //displayAboutMe = "Profile successfully retrieved.";
+                }
+                else
+                {
+                    displayAboutMe = "Lambda response message indicates an error.";
+                }
+            }
+            else
+            {
+                displayAboutMe = $"HTTP request failed: {response.StatusCode}, Content: {content}";
+            }
+        }
+        catch (HttpRequestException httpEx)
+        {
+            displayAboutMe = "HTTP Request Exception: " + httpEx.Message;
+        }
+        catch (Exception ex)
+        {
+            displayAboutMe = "General Exception: " + ex.Message;
+        }
+    }
+
+    private void UpdateDisplayProfile(UserAttributes attributes)
+    {
+        displayFirstName = attributes.InGameFirstName ?? "Loading...";
+        displayLastName = attributes.InGameLastName ?? "Loading...";
+        displayServer = attributes.HomeServer ?? "Loading...";
+        displayMareCode = attributes.MareCode ?? "Loading...";
+        displayDiscordName = attributes.DiscordName ?? "Loading...";
+        displayAboutMe = attributes.AboutMe ?? "Loading...";
+    }
+
+
+
+
+
+
+
+    private void DisplayUserProfile()
+    {
+        ImGui.SetCursorPos(new Vector2(450, 75));
+        ImGui.SetNextItemWidth(200.0f);
+        ImGui.InputText("In Game First Name", ref displayFirstName, 100);
+
+        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
+        ImGui.SetNextItemWidth(200.0f);
+        ImGui.InputText("In Game Last Name", ref displayLastName, 100);
+
+        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
+        ImGui.SetNextItemWidth(200.0f);
+        ImGui.InputText("Home Server", ref displayServer, 100);
+
+        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
+        ImGui.SetNextItemWidth(200.0f);
+        ImGui.InputText("Mare Code", ref displayMareCode, 100);
+
+        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
+        ImGui.SetNextItemWidth(200.0f);
+        ImGui.InputText("Discord Name", ref displayDiscordName, 100);
+
+        // Calculate the position for the "About Me" input field
+        Vector2 startPosition = new Vector2(450, ImGui.GetCursorPosY() + 2);
+
+        // Calculate the available width based on the position and width of other input fields
+        float availableWidth = 450 + 325 - startPosition.X;
+
+        // Manually handle word wrapping for the "About Me" input field
+        float textHeight = ImGui.GetTextLineHeightWithSpacing() * 7; // Adjust the height as needed
+        ImGui.SetCursorPos(startPosition);
+        ImGui.BeginChild("AboutMeChild", new Vector2(availableWidth, textHeight), true);
+
+        // InputTextMultiline with word wrapping
+        ImGui.InputTextMultiline("##AboutMeInput", ref displayAboutMe, 500, new Vector2(availableWidth, textHeight), ImGuiInputTextFlags.None);
+
+        ImGui.EndChild();
+        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
+        if (ImGui.Button("Update Profile"))
+        {
+            System.Threading.Tasks.Task.Run(async () => await UpdateUserProfile());
+        }
+
+
+    }
 
 
     private void DisplayImageUploadSection()
@@ -497,6 +661,9 @@ public class MainWindow : Window, IDisposable
             UploadProfileImage();
         }
     }
+
+    #endregion
+
 
 
 
@@ -679,122 +846,6 @@ public class MainWindow : Window, IDisposable
         // This could involve sending an update to your backend API
     }
     #endregion
-
-
-
-
-
-    private async System.Threading.Tasks.Task RetrieveUserProfile()
-    {
-        if (!isAuthenticated || string.IsNullOrEmpty(accessToken))
-        {
-            displayAboutMe = "User is not authenticated or accessToken is missing.";
-            return;
-        }
-        
-        var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-
-        string profileApiUrl = "https://97xy48sdkh.execute-api.us-east-2.amazonaws.com/FetchProfileStage/fetch";
-
-        try
-        {
-            var response = await httpClient.GetAsync(profileApiUrl);
-            var content = await response.Content.ReadAsStringAsync();
-
-            if (response.IsSuccessStatusCode)
-            {
-                var lambdaResponse = JsonConvert.DeserializeObject<LambdaResponse>(content);
-
-                if (lambdaResponse.Message == "User verified")
-                {
-                    UpdateDisplayProfile(lambdaResponse.Attributes);
-                    //displayAboutMe = "Profile successfully retrieved.";
-                }
-                else
-                {
-                    displayAboutMe = "Lambda response message indicates an error.";
-                }
-            }
-            else
-            {
-                displayAboutMe = $"HTTP request failed: {response.StatusCode}, Content: {content}";
-            }
-        }
-        catch (HttpRequestException httpEx)
-        {
-            displayAboutMe = "HTTP Request Exception: " + httpEx.Message;
-        }
-        catch (Exception ex)
-        {
-            displayAboutMe = "General Exception: " + ex.Message;
-        }
-    }
-
-    private void UpdateDisplayProfile(UserAttributes attributes)
-    {
-        displayFirstName = attributes.InGameFirstName ?? "Loading...";
-        displayLastName = attributes.InGameLastName ?? "Loading...";
-        displayServer = attributes.HomeServer ?? "Loading...";
-        displayMareCode = attributes.MareCode ?? "Loading...";
-        displayDiscordName = attributes.DiscordName ?? "Loading...";
-        displayAboutMe = attributes.AboutMe ?? "Loading...";
-    }
-
-
-
-
-
-
-
-    private void DisplayUserProfile()
-    {
-        ImGui.SetCursorPos(new Vector2(450, 75));
-        ImGui.SetNextItemWidth(200.0f);
-        ImGui.InputText("In Game First Name", ref displayFirstName, 100);
-
-        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
-        ImGui.SetNextItemWidth(200.0f);
-        ImGui.InputText("In Game Last Name", ref displayLastName, 100);
-
-        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
-        ImGui.SetNextItemWidth(200.0f);
-        ImGui.InputText("Home Server", ref displayServer, 100);
-
-        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
-        ImGui.SetNextItemWidth(200.0f);
-        ImGui.InputText("Mare Code", ref displayMareCode, 100);
-
-        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
-        ImGui.SetNextItemWidth(200.0f);
-        ImGui.InputText("Discord Name", ref displayDiscordName, 100);
-
-        // Calculate the position for the "About Me" input field
-        Vector2 startPosition = new Vector2(450, ImGui.GetCursorPosY() + 2);
-
-        // Calculate the available width based on the position and width of other input fields
-        float availableWidth = 450 + 325 - startPosition.X;
-
-        // Manually handle word wrapping for the "About Me" input field
-        float textHeight = ImGui.GetTextLineHeightWithSpacing() * 7; // Adjust the height as needed
-        ImGui.SetCursorPos(startPosition);
-        ImGui.BeginChild("AboutMeChild", new Vector2(availableWidth, textHeight), true);
-
-        // InputTextMultiline with word wrapping
-        ImGui.InputTextMultiline("##AboutMeInput", ref displayAboutMe, 500, new Vector2(availableWidth, textHeight), ImGuiInputTextFlags.None);
-
-        ImGui.EndChild();
-        ImGui.SetCursorPos(new Vector2(450, ImGui.GetCursorPosY() + 2));
-        if (ImGui.Button("Update Profile"))
-        {
-            System.Threading.Tasks.Task.Run(async () => await UpdateUserProfile());
-        }
-
-        
-    }
-
-
-
 
 
 
@@ -1109,5 +1160,209 @@ public class MainWindow : Window, IDisposable
     #endregion
 
 
+
+    #region Load and Populate Match
+
+    private async System.Threading.Tasks.Task<(string downloadUrl, TargetUserAttributes attributes, string userId, string errorMessage)> GetTargetPreSignedDownloadUrl()
+    {
+        using (var httpClient = new HttpClient())
+        {
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", accessToken);
+
+            string lambdaApiUrl = "https://5duykxcinj.execute-api.us-east-2.amazonaws.com/DownloadProfileImageStage/download";
+
+            try
+            {
+                var response = await httpClient.GetAsync(lambdaApiUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var lambdaResponse = JsonConvert.DeserializeObject<LambdaGetTargetProfileResponse>(content);
+                    return (lambdaResponse.DownloadUrl, lambdaResponse.Attributes, lambdaResponse.UserId, null);
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    return (null, null, null, $"Error: {response.StatusCode} - {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                return (null, null, null, $"Exception occurred: {ex.Message}");
+            }
+        }
+    }
+
+
+    private async System.Threading.Tasks.Task TargetDownloadImage(string preSignedUrl)
+    {
+        string directoryPath = @"c:\findingfantasy"; // Directory where the file will be saved
+        string fileName = Path.GetFileName(new Uri(preSignedUrl).LocalPath); // Extracts the file name from the URL
+        string localFilePath = Path.Combine(directoryPath, fileName); // Combines the directory path with the file name
+
+        using (var httpClient = new HttpClient())
+        {
+            try
+            {
+                var response = await httpClient.GetAsync(preSignedUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    // Ensure the directory exists
+                    Directory.CreateDirectory(directoryPath); // This will create the directory if it doesn't exist
+
+                    using (var stream = await response.Content.ReadAsStreamAsync())
+                    {
+                        using (var fileStream = new FileStream(localFilePath, FileMode.Create, FileAccess.Write))
+                        {
+                            await stream.CopyToAsync(fileStream);
+                        }
+                    }
+                    Console.WriteLine($"Image downloaded successfully to {localFilePath}.");
+                }
+                else
+                {
+                    Console.WriteLine($"Failed to download image. Status Code: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception during image download: {ex.Message}");
+            }
+        }
+    }
+
+
+
+    private async System.Threading.Tasks.Task DownloadTargetImageAndGetTargetInfo()
+    {
+        targetProfileLoaded = false;
+
+        var (preSignedDownloadUrl, targetAttributes, userId, errorMessage) = await GetTargetPreSignedDownloadUrl();
+        if (!string.IsNullOrEmpty(preSignedDownloadUrl))
+        {
+            await TargetDownloadImage(preSignedDownloadUrl);
+            downloadErrorMessage = "";
+
+            targetUserID = userId;  // Now correctly storing the userId
+            LoadTargetProfileImage(Path.Combine(@"c:\findingfantasy", Path.GetFileName(new Uri(preSignedDownloadUrl).LocalPath)));
+            UpdateTargetDisplayProfile(targetAttributes);
+            targetProfileLoaded = true;
+        }
+        else
+        {
+            downloadTargetErrorMessage = errorMessage ?? "Failed to get the pre-signed download URL.";
+        }
+    }
+
+
+    private async System.Threading.Tasks.Task RetrieveTargetProfileInfo()
+    {
+        using (var httpClient = new HttpClient())
+        {
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            string lambdaApiUrl = "https://zj1r9hq40e.execute-api.us-east-2.amazonaws.com/GetProfileStage/getprofile"; 
+
+            try
+            {
+                var response = await httpClient.GetAsync(lambdaApiUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var targetProfileResponse = JsonConvert.DeserializeObject<LambdaGetTargetProfileResponse>(content);
+
+                    // Update target profile display information
+                    UpdateTargetDisplayProfile(targetProfileResponse.Attributes);
+
+                    // Set targetProfileLoaded to true if everything has been successfully retrieved and loaded
+                    targetProfileLoaded = true;
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    downloadTargetErrorMessage = $"Error: {response.StatusCode} - {errorContent}";
+                }
+            }
+            catch (Exception ex)
+            {
+                downloadTargetErrorMessage = $"Exception occurred: {ex.Message}";
+            }
+        }
+    }
+
+
+    private void UpdateTargetDisplayProfile(TargetUserAttributes attributes)
+    {
+        targetUserFirstName = attributes.InGameFirstName ?? "Loading...";
+        targetUserLastName = attributes.InGameLastName ?? "Loading...";
+        targetUserAboutMe = attributes.AboutMe ?? "Loading...";
+        // targetUserID = attributes.Sub ?? "null"; // Ensure you have a 'sub' property if you need the user ID
+    }
+
+
+    private void LoadTargetProfileImage(string imagePath)
+    {
+        downloadErrorMessage = "";
+
+        Console.WriteLine($"Attempting to load profile image from: {imagePath}");
+
+        if (!File.Exists(imagePath))
+        {
+            downloadTargetErrorMessage = "No Image Here";
+            Console.WriteLine(downloadErrorMessage);
+            return;
+        }
+
+        try
+        {
+            targetProfileImage?.Dispose();
+            targetProfileImage = this.pluginInterface.UiBuilder.LoadImage(imagePath);
+
+            if (targetProfileImage != null)
+            {
+                Console.WriteLine("Image loaded successfully.");
+            }
+            else
+            {
+                downloadTargetErrorMessage = "Failed to load image: Image is null after loading.";
+                Console.WriteLine(downloadErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            downloadTargetErrorMessage = $"Exception during image loading: {ex.Message}";
+            Console.WriteLine(downloadErrorMessage);
+        }
+    }
+
+
+
+    private void DrawTargetProfileImage()
+    {
+
+
+        if (targetProfileImage != null)
+        {
+            // Set the size for the image
+            ImGui.SetCursorPos(new Vector2(0, 75));
+            var imageSize = new Vector2(300, 300);
+
+            // Draw the image
+            ImGui.Image(targetProfileImage.ImGuiHandle, imageSize);
+        }
+        else
+        {
+            // Draw placeholder text or image if the profile image is not loaded
+            //ImGui.Text("Profile image not loaded.");
+        }
+    }
+
+    
+
+   
+
+    #endregion
 
 }
