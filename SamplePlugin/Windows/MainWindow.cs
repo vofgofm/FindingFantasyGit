@@ -157,7 +157,7 @@ public class MainWindow : Window, IDisposable
     private DalamudPluginInterface pluginInterface;
 
     //Variables we're going to need on the swiping profile tab
-    private bool targetProfileLoaded = false;
+    private bool targetProfileLoaded;
     private bool gettingTargetProfile;
     private string targetUserID;
     private string targetUserFirstName;
@@ -271,28 +271,31 @@ public class MainWindow : Window, IDisposable
                 if (ImGui.BeginTabItem("Swiping"))
                 {
                     //
-                    if (gettingTargetProfile)
+                    if (!gettingTargetProfile)
                     {
-                        DownloadTargetImageAndGetTargetInfo();
+                        RetrieveTargetProfileInfo();
                         //set targetprofileloaded true when successfull
-                        targetProfileLoaded = true;
+                        gettingTargetProfile = true;
                     }
                     else
                     {
                         if (targetProfileLoaded)
                         {
-
+                            DrawTargetProfileImage();
+                            DrawTargetAboutMe();
                         }
                         else
                         {
                             //DrawTargetProfile
                             ImGui.Text("Loading");
-                            if (!string.IsNullOrEmpty(downloadTargetErrorMessage))
-                            {
-                                ImGui.TextColored(new Vector4(1, 0, 0, 1), downloadErrorMessage);
-                            }
+                            
                         }
 
+                    }
+
+                    if (!string.IsNullOrEmpty(downloadTargetErrorMessage))
+                    {
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), downloadTargetErrorMessage);
                     }
 
                     ImGui.EndTabItem();
@@ -1234,25 +1237,25 @@ public class MainWindow : Window, IDisposable
 
 
 
-    private async System.Threading.Tasks.Task DownloadTargetImageAndGetTargetInfo()
+    private async System.Threading.Tasks.Task DownloadTargetImageAndGetTargetInfo(string preSignedDownloadUrl, string userId)
     {
-        targetProfileLoaded = false;
 
-        var (preSignedDownloadUrl, targetAttributes, userId, errorMessage) = await GetTargetPreSignedDownloadUrl();
-        if (!string.IsNullOrEmpty(preSignedDownloadUrl))
+        await TargetDownloadImage(preSignedDownloadUrl);
+
+        if (downloadErrorMessage == "")
         {
-            await TargetDownloadImage(preSignedDownloadUrl);
-            downloadErrorMessage = "";
-
-            targetUserID = userId;  // Now correctly storing the userId
-            LoadTargetProfileImage(Path.Combine(@"c:\findingfantasy", Path.GetFileName(new Uri(preSignedDownloadUrl).LocalPath)));
-            UpdateTargetDisplayProfile(targetAttributes);
-            targetProfileLoaded = true;
+            // If there was no download error, load the image
+            string localImagePath = Path.Combine(@"c:\findingfantasy", Path.GetFileName(new Uri(preSignedDownloadUrl).LocalPath));
+            LoadTargetProfileImage(localImagePath);
+            targetUserID = userId;
         }
         else
         {
-            downloadTargetErrorMessage = errorMessage ?? "Failed to get the pre-signed download URL.";
+            // If there was a download error, handle it accordingly
+            downloadTargetErrorMessage = "Image could not be downloaded.";
         }
+
+
     }
 
 
@@ -1263,7 +1266,7 @@ public class MainWindow : Window, IDisposable
             httpClient.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
-            string lambdaApiUrl = "https://zj1r9hq40e.execute-api.us-east-2.amazonaws.com/GetProfileStage/getprofile"; 
+            string lambdaApiUrl = "https://zj1r9hq40e.execute-api.us-east-2.amazonaws.com/GetProfileStage/getprofile";
 
             try
             {
@@ -1273,11 +1276,17 @@ public class MainWindow : Window, IDisposable
                     var content = await response.Content.ReadAsStringAsync();
                     var targetProfileResponse = JsonConvert.DeserializeObject<LambdaGetTargetProfileResponse>(content);
 
-                    // Update target profile display information
-                    UpdateTargetDisplayProfile(targetProfileResponse.Attributes);
+                    if (targetProfileResponse != null)
+                    {
+                        // Call the method to handle the image download and loading
+                        await DownloadTargetImageAndGetTargetInfo(targetProfileResponse.DownloadUrl, targetProfileResponse.UserId);
 
-                    // Set targetProfileLoaded to true if everything has been successfully retrieved and loaded
-                    targetProfileLoaded = true;
+                        // Now the image is downloaded and loaded, you can update the profile attributes
+                        UpdateTargetDisplayProfile(targetProfileResponse.Attributes);
+
+                        // Indicate that the profile is loaded
+                        targetProfileLoaded = true;
+                    }
                 }
                 else
                 {
@@ -1347,7 +1356,7 @@ public class MainWindow : Window, IDisposable
         {
             // Set the size for the image
             ImGui.SetCursorPos(new Vector2(0, 75));
-            var imageSize = new Vector2(300, 300);
+            var imageSize = new Vector2(375, 375);
 
             // Draw the image
             ImGui.Image(targetProfileImage.ImGuiHandle, imageSize);
@@ -1355,13 +1364,57 @@ public class MainWindow : Window, IDisposable
         else
         {
             // Draw placeholder text or image if the profile image is not loaded
-            //ImGui.Text("Profile image not loaded.");
+            ImGui.Text("Profile image not loaded.");
         }
     }
 
     
+    private void DrawTargetAboutMe()
+    {
+        DrawTargetProfileImage();
 
-   
+        // Set cursor position and font scale for the first name
+        ImGui.SetCursorPos(new Vector2(475, 75));
+        ImGui.SetWindowFontScale(1.2f);
+        ImGui.Text(targetUserFirstName);
+
+        ImGui.SameLine();
+
+        ImGui.Text(targetUserLastName);
+
+        // Reset font scale and set position for the about me section
+        ImGui.SetWindowFontScale(1f);
+        ImGui.SetCursorPos(new Vector2(400, ImGui.GetCursorPosY() + ImGui.GetTextLineHeightWithSpacing() * 2));
+
+        // Set the wrap position to 450 pixels from the start of the window
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 425);
+        ImGui.Text(targetUserAboutMe);
+
+        // Pop the text wrap position to return to default behavior
+        ImGui.PopTextWrapPos();
+
+
+        // Spacing below the "About Me" section before the buttons
+        ImGui.SetCursorPos(new Vector2(400, ImGui.GetCursorPosY() + ImGui.GetTextLineHeightWithSpacing() * 2));
+
+        // Place the "Swipe Left" button at X=400
+        ImGui.SetCursorPos(new Vector2(400, ImGui.GetCursorPosY()));
+        if (ImGui.Button("Swipe Left", new Vector2(75, 35))) // Adjust button size as needed
+        {
+            // Handle swipe left action
+        }
+        ImGui.SameLine();
+        ImGui.Dummy(new Vector2(200, 50)); // Adjust the X value for width of the space
+        ImGui.SameLine();
+        // Place the "Swipe Right" button at X=725, maintaining the same Y coordinate
+        
+        if (ImGui.Button("Swipe Right", new Vector2(75, 35))) // Adjust button size as needed
+        {
+            // Handle swipe right action
+        }
+
+    }
+
 
     #endregion
 
