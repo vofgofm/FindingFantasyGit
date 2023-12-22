@@ -107,12 +107,24 @@ public class TargetUserAttributes
     [JsonProperty("custom:AboutMe")]
     public string AboutMe { get; set; }
 }
+
+//used during the send swipe bool
+public class ErrorResponse
+{
+    [JsonProperty("error")]
+    public string Error { get; set; }
+
+    [JsonProperty("details")]
+    public string Details { get; set; }
+}
 #endregion
 
 
 public class MainWindow : Window, IDisposable
 {
     private IDalamudTextureWrap LogoImage;
+    private IDalamudTextureWrap likeImage;
+    private IDalamudTextureWrap dislikeImage;
     private Plugin Plugin;
     private object ClientState;
     private bool isAuthenticated = false; // Tracks authentication status
@@ -163,17 +175,17 @@ public class MainWindow : Window, IDisposable
     private string targetUserFirstName;
     private string targetUserLastName;
     private string targetUserAboutMe;
-
-    
     private IDalamudTextureWrap targetProfileImage;
+    //matchmaking
+    private string logSwipeResults;
+    private bool noUnswipedUsersAvailable = false;
 
 
 
 
 
 
-
-    public MainWindow(Plugin plugin, IDalamudTextureWrap logoImage, DalamudPluginInterface PluginInterface) : base(
+    public MainWindow(Plugin plugin, IDalamudTextureWrap logoImage, DalamudPluginInterface PluginInterface, IDalamudTextureWrap LikeImage, IDalamudTextureWrap DislikeImage) : base(
         "Finding Fantasy", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.SizeConstraints = new WindowSizeConstraints
@@ -185,6 +197,8 @@ public class MainWindow : Window, IDisposable
         this.LogoImage = logoImage;
         this.Plugin = plugin;
         this.pluginInterface = PluginInterface;
+        this.likeImage = LikeImage;
+        this.dislikeImage = DislikeImage;
 
     }
 
@@ -194,6 +208,12 @@ public class MainWindow : Window, IDisposable
         {
             profileImage.Dispose();
             profileImage = null;
+        }
+
+        if(targetProfileImage != null)
+        {
+            targetProfileImage.Dispose();
+            targetProfileImage = null;
         }
     }
 
@@ -243,7 +263,7 @@ public class MainWindow : Window, IDisposable
                     }
 
 
-                    // Update profile button
+                    
 
 
                     ImGui.SameLine();
@@ -283,11 +303,21 @@ public class MainWindow : Window, IDisposable
                         {
                             DrawTargetProfileImage();
                             DrawTargetAboutMe();
+                            downloadTargetErrorMessage = "";
+
+
                         }
                         else
                         {
                             //DrawTargetProfile
                             ImGui.Text("Loading");
+                            if (ImGui.Button("Press if this is longer than 30 seconds or you get an error"))
+                            {
+                                PrepSwipeLoop();
+                                downloadErrorMessage = "";
+                            }
+                            
+
                             
                         }
 
@@ -297,17 +327,45 @@ public class MainWindow : Window, IDisposable
                     {
                         ImGui.TextColored(new Vector4(1, 0, 0, 1), downloadTargetErrorMessage);
                     }
+                    if (!string.IsNullOrEmpty(logSwipeResults))
+                    {
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), logSwipeResults);
+                    }
+
+                    if(noUnswipedUsersAvailable)
+                    {
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), "There's nobody new to swipe on, why not invite a friend to the party? Try again in abit");
+                    }
 
                     ImGui.EndTabItem();
                 }
 
                 if (ImGui.BeginTabItem("Matches"))
                 {
-                    // Content for "Matches" tab
-                    ImGui.Text("Your matches will be displayed here.");
+                    // Assume you have a list of strings
+                    List<string> strings = new List<string> { "match1","match2", "match3" };
 
-                    // Implement logic to display matches
-                    // ...
+                    // Set the size for the scrollable area
+                    Vector2 size = new Vector2(400, 400);
+
+                    // Begin the child window with a specified size for the scrollable area
+                    if (ImGui.BeginChild("ScrollableArea", size, true))
+                    {
+                        foreach (var str in strings)
+                        {
+                            // Create a button for each string
+                            if (ImGui.Button(str))
+                            {
+                                // Handle button click here
+                            }
+
+                            // You can add extra spacing between buttons if needed
+                            ImGui.Dummy(new Vector2(0.0f, 5.0f)); // Adds a tiny bit of space after each button
+                        }
+
+                        // End the child window
+                        ImGui.EndChild();
+                    }
 
                     ImGui.EndTabItem();
                 }
@@ -667,9 +725,6 @@ public class MainWindow : Window, IDisposable
 
     #endregion
 
-
-
-
     #region Upload Image
 
     private async System.Threading.Tasks.Task UploadProfileImage()
@@ -849,9 +904,6 @@ public class MainWindow : Window, IDisposable
         // This could involve sending an update to your backend API
     }
     #endregion
-
-
-
 
     #region SignIn
     private void DrawLoginOrCreateAccountUI()
@@ -1162,8 +1214,6 @@ public class MainWindow : Window, IDisposable
 
     #endregion
 
-
-
     #region Load and Populate Match
 
     private async System.Threading.Tasks.Task<(string downloadUrl, TargetUserAttributes attributes, string userId, string errorMessage)> GetTargetPreSignedDownloadUrl()
@@ -1291,7 +1341,15 @@ public class MainWindow : Window, IDisposable
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    downloadTargetErrorMessage = $"Error: {response.StatusCode} - {errorContent}";
+                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                    errorContent.Contains("No unswiped users available"))
+                    {
+                        noUnswipedUsersAvailable = true;
+                    }
+                    else
+                    {
+                        downloadTargetErrorMessage = $"Error: {response.StatusCode} - {errorContent}";
+                    }
                 }
             }
             catch (Exception ex)
@@ -1368,7 +1426,7 @@ public class MainWindow : Window, IDisposable
         }
     }
 
-    
+
     private void DrawTargetAboutMe()
     {
         DrawTargetProfileImage();
@@ -1399,21 +1457,162 @@ public class MainWindow : Window, IDisposable
 
         // Place the "Swipe Left" button at X=400
         ImGui.SetCursorPos(new Vector2(400, ImGui.GetCursorPosY()));
-        if (ImGui.Button("Swipe Left", new Vector2(75, 35))) // Adjust button size as needed
+        if (dislikeImage != null)
         {
-            // Handle swipe left action
+            // Use the texture in ImGui, for example in an ImageButton
+            if (ImGui.ImageButton(dislikeImage.ImGuiHandle, new Vector2(75, 75)))
+            {
+                SendDislike(targetUserID);
+            }
         }
         ImGui.SameLine();
         ImGui.Dummy(new Vector2(200, 50)); // Adjust the X value for width of the space
         ImGui.SameLine();
         // Place the "Swipe Right" button at X=725, maintaining the same Y coordinate
-        
-        if (ImGui.Button("Swipe Right", new Vector2(75, 35))) // Adjust button size as needed
+        if (likeImage != null)
         {
-            // Handle swipe right action
+            // Use the texture in ImGui, for example in an ImageButton
+            if (ImGui.ImageButton(likeImage.ImGuiHandle, new Vector2(75,75)))
+            {
+                SendLike(targetUserID);
+            }
+        }
+
+        ImGui.SetCursorPos(new Vector2(400, ImGui.GetCursorPosY() + ImGui.GetTextLineHeightWithSpacing() * 4));
+        if (ImGui.Button("Refresh"))
+        {
+            PrepSwipeLoop();
         }
 
     }
+
+
+    #endregion
+
+    #region Swiping
+
+    public async System.Threading.Tasks.Task<bool> SendSwipeAction(string targetUserId, string likeordislike)
+    {
+        var swipeActionData = new
+        {
+            targetUserID = targetUserId,
+            likeordislike = likeordislike // Ensure this matches the expected key in your Lambda function
+        };
+
+        var content = new StringContent(JsonConvert.SerializeObject(swipeActionData), Encoding.UTF8, "application/json");
+
+        using (var httpClient = new HttpClient())
+        {
+            // Ensure the bearer token is attached to the request
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", accessToken); // Ensure accessToken is defined and valid
+
+            var response = await httpClient.PostAsync("https://sdoh820tf8.execute-api.us-east-2.amazonaws.com/FFlogSwipe/logswipe", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Handle successful swipe action
+                return true;
+            }
+            else
+            {
+                // Handle error response
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    // Attempt to deserialize the response body to get detailed error info
+                    var errorDetails = JsonConvert.DeserializeObject<ErrorResponse>(errorResponse);
+                    Console.WriteLine($"Error: {errorDetails.Error} - {errorDetails.Details}");
+                }
+                catch (JsonSerializationException)
+                {
+                    // If deserialization fails, output the raw response
+                    Console.WriteLine("Error deserializing error response: " + errorResponse);
+                }
+
+                return false;
+            }
+        }
+    }
+
+
+    private bool isOperationInProgress = false;
+
+    public async System.Threading.Tasks.Task SendLike(string targetUserId)
+    {
+        if (isOperationInProgress)
+        {
+            Console.WriteLine("Operation in progress. Please wait.");
+            return;
+        }
+
+        isOperationInProgress = true;
+
+        try
+        {
+            bool result = await SendSwipeAction(targetUserId, "like");
+
+            if (result)
+            {
+                logSwipeResults = "Like Sent";
+            }
+            else
+            {
+                logSwipeResults = "network error";
+            }
+        }
+        finally
+        {
+            PrepSwipeLoop();
+            isOperationInProgress = false;
+        }
+    }
+
+    public async System.Threading.Tasks.Task SendDislike(string targetUserId)
+    {
+        if (isOperationInProgress)
+        {
+            Console.WriteLine("Operation in progress. Please wait.");
+            return;
+        }
+
+        isOperationInProgress = true;
+
+        try
+        {
+            bool result = await SendSwipeAction(targetUserId, "dislike");
+
+            if (result)
+            {
+                logSwipeResults = "Dislike Sent";
+            }
+            else
+            {
+                logSwipeResults = "network error";
+            }
+        }
+        finally
+        {
+            PrepSwipeLoop();
+            isOperationInProgress = false;
+        }
+    }
+
+    private void PrepSwipeLoop()
+    {
+        targetProfileImage?.Dispose();
+        targetProfileImage = null;
+        targetProfileLoaded = false;
+        gettingTargetProfile = false;
+        logSwipeResults = "";
+        isOperationInProgress = false; // Ensure the flag is reset
+        noUnswipedUsersAvailable = false;
+    }
+
+
+    #endregion
+
+    #region Matching
 
 
     #endregion

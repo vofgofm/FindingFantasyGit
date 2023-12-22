@@ -68,9 +68,14 @@ namespace FindingFantasy.Windows
             // you might normally want to embed resources and load them from the manifest stream
             var imagePath = Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "profile.png");
             var logoImage = this.PluginInterface.UiBuilder.LoadImage(imagePath);
+            var likebuttonPath = Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "like.png");
+            var likeImage = this.PluginInterface.UiBuilder.LoadImage(likebuttonPath);
+            var dislikebuttonPath = Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "dislike.png");
+            var dislikeImage = this.PluginInterface.UiBuilder.LoadImage(dislikebuttonPath);
+
 
             ConfigWindow = new ConfigWindow(this);
-            MainWindow = new MainWindow(this, logoImage, pluginInterface);
+            MainWindow = new MainWindow(this, logoImage, pluginInterface, likeImage, dislikeImage);
             SwipeMenu = new SwipeMenu(this, logoImage);
 
 
