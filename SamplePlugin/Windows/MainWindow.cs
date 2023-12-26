@@ -1170,7 +1170,7 @@ public class MainWindow : Window, IDisposable
 
     public async System.Threading.Tasks.Task FetchChateauMessageAsync()
     {
-        string requestUri = "https://your-api-gateway-url"; // Replace with your API URL
+        string requestUri = "https://b1fm80p4a5.execute-api.us-east-2.amazonaws.com/StringStage/string"; // Replace with your API URL
         var httpClient = new HttpClient();
         try
         {
