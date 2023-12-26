@@ -92,7 +92,7 @@ namespace FindingFantasy.Windows
 
             Framework.Update += OnFrameworkUpdate;
 
-            Chat.Print("Plugin turned on and chat is working");
+            Chat.Print("Welcome to Finding Fantasy /findingfantasy to begin");
 
            
 

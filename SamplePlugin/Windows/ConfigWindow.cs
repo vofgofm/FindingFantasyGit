@@ -10,7 +10,7 @@ public class ConfigWindow : Window, IDisposable
     private Configuration Configuration;
 
     public ConfigWindow(Plugin plugin) : base(
-        "Here's our upcoming events",
+        "Settings",
         ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
         ImGuiWindowFlags.NoScrollWithMouse)
     {
@@ -31,14 +31,8 @@ public class ConfigWindow : Window, IDisposable
         //    this.Configuration.SomePropertyToBeSavedAndWithADefault = configValue;
         // can save immediately on change, if you don't want to provide a "Save and Close" button
         //    this.Configuration.Save();
-        ImGui.Text("This months password is Spooktober");
-        ImGui.Text("Give it to your bartender");
-        ImGui.Text("   For a free drink");
-
-        ImGui.Text("Upcoming Events");
-        ImGui.Indent(10);
-        ImGui.Text("October 26th Monster Bash");
-        ImGui.Text("November 34th Monthly Auction");
+        ImGui.Text("All Settings Configured In Main Window After Login /findingfantasy");
+        
 
     }
     
