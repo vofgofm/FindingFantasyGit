@@ -151,6 +151,12 @@ public class MatchmakingResponse
     public List<Match> Matches { get; set; }
 }
 
+public class ChateauResponse
+{
+    public string Message { get; set; }
+}
+
+
 #endregion
 
 
@@ -221,8 +227,10 @@ public class MainWindow : Window, IDisposable
     private bool canResetMatches = true;
     private string resetButtonString = "Refresh Matches";
 
-
-
+    //Chateau
+    private string chateauMessageString = "The Chateau will announce their next event soon.";
+    private bool hasLoadedChateauString;
+    private bool attemptingChateauStringLoad;
 
 
 
@@ -446,6 +454,11 @@ public class MainWindow : Window, IDisposable
                     }
 
                     ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("About"))
+                {
+                   ImGui.Text("Created by Big Bard \n please donate at kofi.com/bigbard \n Join the discord at discord.gg/thechateauxiv \n I'm just 1 person managing this in my free time, please treat everyone respectfully \n If you see a problematic profile, report it on the discord. A report feature is on the roadmap.");
                 }
 
                 ImGui.EndTabBar();
@@ -674,6 +687,7 @@ public class MainWindow : Window, IDisposable
         {
             profileUpdateMessage = $"Exception occurred while updating profile: {ex.Message}";
             profileUpdateSuccess = false;
+            isAuthenticated = false;
         }
     }
 
@@ -684,6 +698,7 @@ public class MainWindow : Window, IDisposable
         if (!isAuthenticated || string.IsNullOrEmpty(accessToken))
         {
             displayAboutMe = "User is not authenticated or accessToken is missing.";
+            isAuthenticated = false;
             return;
         }
 
@@ -899,6 +914,7 @@ public class MainWindow : Window, IDisposable
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
                         uploadErrorMessage = "Unauthorized: Invalid or expired token.";
+                        isAuthenticated = false;
                     }
                     // Handle other potential errors
                     else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
@@ -1056,11 +1072,29 @@ public class MainWindow : Window, IDisposable
             ImGui.TextWrapped("Want more features added? Donate at Kofi.com/bigbard");
 
             // Chateau Text - Below the login form, aligned with the bottom of the window
-            ImGui.SetCursorPos(new Vector2(450, 325));
+            ImGui.SetCursorPos(new Vector2(450, 300));
             ImGui.SetNextItemWidth(315.0f);
             ImGui.TextWrapped("Need somewhere to take your date? The Chateau is open Thursdays and Saturdays 8:00pm-12:00am EST.\nPrimal - Lamia - Shirogane - W16 - P31 \n discord.gg/thechateauxiv");
+            ImGui.SetCursorPos(new Vector2(450, 415));
 
-
+            if(!attemptingChateauStringLoad)
+            {
+                FetchChateauMessageAsync();
+                ImGui.TextColored(new Vector4(0, 1, 0, 1), chateauMessageString);
+                attemptingChateauStringLoad = true;
+            }
+            else
+            {
+                if(hasLoadedChateauString)
+                {
+                    ImGui.TextColored(new Vector4(0, 1, 0, 1), chateauMessageString);
+                }
+                else
+                {
+                    ImGui.TextColored(new Vector4(0, 1, 0, 1), "The Chateau will announce their next event soon."); 
+                }
+            }
+            
         }
     }
 
@@ -1134,7 +1168,25 @@ public class MainWindow : Window, IDisposable
     }
 
 
+    public async System.Threading.Tasks.Task FetchChateauMessageAsync()
+    {
+        string requestUri = "https://your-api-gateway-url"; // Replace with your API URL
+        var httpClient = new HttpClient();
+        try
+        {
+            HttpResponseMessage response = await httpClient.GetAsync(requestUri);
+            response.EnsureSuccessStatusCode();
+            string responseBody = await response.Content.ReadAsStringAsync();
 
+            var chateauResponse = JsonConvert.DeserializeObject<ChateauResponse>(responseBody);
+            chateauMessageString = chateauResponse?.Message ?? "No message received";
+            hasLoadedChateauString = true;
+        }
+        catch (Exception ex)
+        {
+            chateauMessageString = $"Error: {ex.Message}";
+        }
+    }
 
 
     private void DrawCreateAccountUI()
