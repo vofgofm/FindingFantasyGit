@@ -1170,7 +1170,7 @@ public class MainWindow : Window, IDisposable
 
     public async System.Threading.Tasks.Task FetchChateauMessageAsync()
     {
-        string requestUri = "https://b1fm80p4a5.execute-api.us-east-2.amazonaws.com/StringStage/string"; // Replace with your API URL
+        string requestUri = "https://b1fm80p4a5.execute-api.us-east-2.amazonaws.com/StringStage/string";
         var httpClient = new HttpClient();
         try
         {
@@ -1178,7 +1178,12 @@ public class MainWindow : Window, IDisposable
             response.EnsureSuccessStatusCode();
             string responseBody = await response.Content.ReadAsStringAsync();
 
-            var chateauResponse = JsonConvert.DeserializeObject<ChateauResponse>(responseBody);
+            // First, deserialize to get the body
+            var responseJson = JsonConvert.DeserializeObject<dynamic>(responseBody);
+            string body = responseJson.body;
+
+            // Second, deserialize the body to get the actual message
+            var chateauResponse = JsonConvert.DeserializeObject<ChateauResponse>(body);
             chateauMessageString = chateauResponse?.Message ?? "No message received";
             hasLoadedChateauString = true;
         }
@@ -1187,6 +1192,7 @@ public class MainWindow : Window, IDisposable
             chateauMessageString = $"Error: {ex.Message}";
         }
     }
+
 
 
     private void DrawCreateAccountUI()
