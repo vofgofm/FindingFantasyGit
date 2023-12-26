@@ -20,6 +20,8 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
 using System.Collections.Generic;
+using System.Linq;
+
 
 
 
@@ -117,6 +119,38 @@ public class ErrorResponse
     [JsonProperty("details")]
     public string Details { get; set; }
 }
+
+
+//matchmaking classes 
+public class Match
+{
+    [JsonProperty("userId")]
+    public string UserId { get; set; }
+
+    [JsonProperty("profilePictureUrl")]
+    public string ProfilePictureUrl { get; set; }
+
+    // Changed to a list of Attribute objects to match the JSON structure
+    [JsonProperty("cognitoInfo")]
+    public List<Attribute> CognitoInfo { get; set; }
+}
+
+// New class to represent each name-value pair in the cognitoInfo array
+public class Attribute
+{
+    [JsonProperty("Name")]
+    public string Name { get; set; }
+
+    [JsonProperty("Value")]
+    public string Value { get; set; }
+}
+
+public class MatchmakingResponse
+{
+    [JsonProperty("matches")]
+    public List<Match> Matches { get; set; }
+}
+
 #endregion
 
 
@@ -176,9 +210,16 @@ public class MainWindow : Window, IDisposable
     private string targetUserLastName;
     private string targetUserAboutMe;
     private IDalamudTextureWrap targetProfileImage;
-    //matchmaking
+    //swiping
     private string logSwipeResults;
     private bool noUnswipedUsersAvailable = false;
+
+    //matchmaking
+    private bool loadedMatches = false;
+    private bool isLoadingMatches = false;
+    private IDalamudTextureWrap matchProfileImage;
+    private bool canResetMatches = true;
+    private string resetButtonString = "Refresh Matches";
 
 
 
@@ -210,7 +251,7 @@ public class MainWindow : Window, IDisposable
             profileImage = null;
         }
 
-        if(targetProfileImage != null)
+        if (targetProfileImage != null)
         {
             targetProfileImage.Dispose();
             targetProfileImage = null;
@@ -263,7 +304,7 @@ public class MainWindow : Window, IDisposable
                     }
 
 
-                    
+
 
 
                     ImGui.SameLine();
@@ -316,9 +357,9 @@ public class MainWindow : Window, IDisposable
                                 PrepSwipeLoop();
                                 downloadErrorMessage = "";
                             }
-                            
 
-                            
+
+
                         }
 
                     }
@@ -332,7 +373,7 @@ public class MainWindow : Window, IDisposable
                         ImGui.TextColored(new Vector4(1, 0, 0, 1), logSwipeResults);
                     }
 
-                    if(noUnswipedUsersAvailable)
+                    if (noUnswipedUsersAvailable)
                     {
                         ImGui.TextColored(new Vector4(1, 0, 0, 1), "There's nobody new to swipe on, why not invite a friend to the party? Try again in abit");
                     }
@@ -342,29 +383,66 @@ public class MainWindow : Window, IDisposable
 
                 if (ImGui.BeginTabItem("Matches"))
                 {
-                    // Assume you have a list of strings
-                    List<string> strings = new List<string> { "match1","match2", "match3" };
-
-                    // Set the size for the scrollable area
-                    Vector2 size = new Vector2(400, 400);
-
-                    // Begin the child window with a specified size for the scrollable area
-                    if (ImGui.BeginChild("ScrollableArea", size, true))
+                    if (loadedMatches)
                     {
-                        foreach (var str in strings)
+                        // Set the size for the scrollable area
+                        Vector2 size = new Vector2(200, 375);
+
+                        // Begin the child window for scrollable buttons
+                        if (ImGui.BeginChild("ScrollableArea", size, true))
                         {
-                            // Create a button for each string
-                            if (ImGui.Button(str))
+                            for (int i = 0; i < subList.Count; i++)
                             {
-                                // Handle button click here
+                                // Create a button for each match
+                                if (ImGui.Button(firstNameList[i] + " " + lastNameList[i]))
+                                {
+                                    // Set the selected match index when a button is clicked
+                                    selectedMatchIndex = i;
+                                }
+
+                                // Add spacing after each button
+                                ImGui.Dummy(new Vector2(0.0f, 5.0f));
                             }
 
-                            // You can add extra spacing between buttons if needed
-                            ImGui.Dummy(new Vector2(0.0f, 5.0f)); // Adds a tiny bit of space after each button
+                            ImGui.Dummy(new Vector2(0.0f, 10.0f));
+
+                            if (ImGui.Button(resetButtonString))
+                            {
+                                ResetMatchLists();
+                            }
+                            // End the child window
+                            ImGui.EndChild();
                         }
 
-                        // End the child window
-                        ImGui.EndChild();
+                        // Check if a match has been selected and display details
+                        if (selectedMatchIndex.HasValue)
+                        {
+                            // Load and display match details for the selected index
+                            DisplayMatchDetails(selectedMatchIndex.Value);
+                        }
+                    }
+                    else
+                    {
+                        if (ImGui.Button("LoadMatches"))
+                        {
+                            if (!isLoadingMatches)
+                            {
+                                CheckForMatches();
+                                isLoadingMatches = true;
+                            }
+                        }
+
+                        ImGui.Text("Click Load Matches, this is server intensive and can only be done once every 5 minutes");
+
+                        if (isLoadingMatches)
+                        {
+                            ImGui.Text("Loading Matches");
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(matchmakingResults))
+                    {
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), matchmakingResults);
                     }
 
                     ImGui.EndTabItem();
@@ -727,6 +805,15 @@ public class MainWindow : Window, IDisposable
 
     #region Upload Image
 
+    private bool IsValidImageFormat(string filePath)
+    {
+        // Check if the file extension is .png
+        var fileExtension = Path.GetExtension(filePath).ToLowerInvariant();
+        return fileExtension == ".png";
+    }
+
+
+
     private async System.Threading.Tasks.Task UploadProfileImage()
     {
         uploadErrorMessage = ""; // Reset the error message each time
@@ -740,7 +827,7 @@ public class MainWindow : Window, IDisposable
         }
         if (!IsValidImageFormat(profileImagePath))
         {
-            uploadErrorMessage = "Invalid image format.";
+            uploadErrorMessage = "Invalid image format. Only PNG files are accepted.";
             Console.WriteLine(uploadErrorMessage); // Log the error
             return;
         }
@@ -889,14 +976,7 @@ public class MainWindow : Window, IDisposable
         }
     }
 
-    private bool IsValidImageFormat(string filePath)
-    {
-        // Implement your image format validation logic here
-        // For example, check the file extension
-        var validFormats = new HashSet<string> { ".jpg", ".jpeg", ".png", ".gif" };
-        var fileExtension = Path.GetExtension(filePath).ToLowerInvariant();
-        return validFormats.Contains(fileExtension);
-    }
+
 
     private void UpdateUserProfileWithImageUrl(string imageUrl)
     {
@@ -1472,7 +1552,7 @@ public class MainWindow : Window, IDisposable
         if (likeImage != null)
         {
             // Use the texture in ImGui, for example in an ImageButton
-            if (ImGui.ImageButton(likeImage.ImGuiHandle, new Vector2(75,75)))
+            if (ImGui.ImageButton(likeImage.ImGuiHandle, new Vector2(75, 75)))
             {
                 SendLike(targetUserID);
             }
@@ -1612,7 +1692,204 @@ public class MainWindow : Window, IDisposable
 
     #endregion
 
+
+
+
     #region Matching
+    private List<string> subList = new List<string>();
+    private List<string> lastNameList = new List<string>();
+    private List<string> homeServerList = new List<string>();
+    private List<string> discordNameList = new List<string>();
+    private List<string> firstNameList = new List<string>();
+    private List<string> aboutMeList = new List<string>();
+    private List<string> mareCodeList = new List<string>();
+    //private List<IDalamudTextureWrap> profilePictures = new List<IDalamudTextureWrap>();
+    private string matchmakingResults;
+
+    public async System.Threading.Tasks.Task ProcessMatchmakingData(MatchmakingResponse response)
+    {
+        foreach (var match in response.Matches)
+        {
+            // Initialize the attribute values for each match
+            string inGameLastName = "";
+            string homeServer = "";
+            string discordName = "";
+            string inGameFirstName = "";
+            string aboutMe = "";
+            string mareCode = "";
+
+            // Extract attribute values from the list of attributes
+            foreach (var attribute in match.CognitoInfo)
+            {
+                switch (attribute.Name)
+                {
+                    case "custom:InGameLastName":
+                        inGameLastName = attribute.Value;
+                        break;
+                    case "custom:HomeServer":
+                        homeServer = attribute.Value;
+                        break;
+                    case "custom:DiscordName":
+                        discordName = attribute.Value;
+                        break;
+                    case "custom:InGameFirstName":
+                        inGameFirstName = attribute.Value;
+                        break;
+                    case "custom:AboutMe":
+                        aboutMe = attribute.Value;
+                        break;
+                    case "custom:MareCode":
+                        mareCode = attribute.Value;
+                        break;
+                        // Add more cases as needed for other attributes
+                }
+            }
+
+            // Add the extracted values to their corresponding lists
+            subList.Add(match.UserId);
+            lastNameList.Add(inGameLastName);
+            homeServerList.Add(homeServer);
+            discordNameList.Add(discordName);
+            firstNameList.Add(inGameFirstName);
+            aboutMeList.Add(aboutMe);
+            mareCodeList.Add(mareCode);
+
+            // Here you should handle downloading the image
+            if (!string.IsNullOrEmpty(match.ProfilePictureUrl))
+            {
+                await TargetDownloadImage(match.ProfilePictureUrl);
+            }
+        }
+    }
+
+    public async System.Threading.Tasks.Task<MatchmakingResponse> GetMatches()
+    {
+        string lambdaApiUrl = "https://ingd5st0j7.execute-api.us-east-2.amazonaws.com/matchmakestage/checkmatch";
+
+        using (var httpClient = new HttpClient())
+        {
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await httpClient.GetAsync(lambdaApiUrl);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<MatchmakingResponse>(content);
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"Error: {response.StatusCode} - {errorContent}");
+            }
+        }
+    }
+
+
+    public async System.Threading.Tasks.Task RetrieveMatchData()
+    {
+        try
+        {
+            var matchmakingResponse = await GetMatches();
+
+            if (matchmakingResponse?.Matches?.Any() == true)
+            {
+                await ProcessMatchmakingData(matchmakingResponse);
+                //matchmakingResults = "Matchmaking data retrieved successfully.";
+                loadedMatches = true;
+            }
+            else
+            {
+                matchmakingResults = "No matches found.";
+            }
+        }
+        catch (HttpRequestException httpEx)
+        {
+            matchmakingResults = $"HTTP Request Exception: {httpEx.Message}";
+        }
+        catch (Exception ex)
+        {
+            matchmakingResults = $"Error retrieving match data: {ex.Message}";
+        }
+    }
+
+
+    private void CheckForMatches()
+    {
+        RetrieveMatchData();
+    }
+
+
+    private int? selectedMatchIndex = null;
+
+    void DisplayMatchDetails(int index)
+    {
+        // Only proceed if the index is valid
+        if (index < 0 || index >= subList.Count)
+        {
+            return;
+        }
+
+        selectedMatchIndex = index; // Update the selected match index
+
+        // Load and display match profile image
+        string directoryPath = @"c:\findingfantasy\";
+        string localImagePath = Path.Combine(directoryPath, $"{subList[index]}.png");
+        matchProfileImage?.Dispose(); // Dispose previous image if any
+        matchProfileImage = this.pluginInterface.UiBuilder.LoadImage(localImagePath);
+
+        // Display the image and text details
+        if (matchProfileImage != null)
+        {
+            var imageSize = new Vector2(225, 225);
+            ImGui.SetCursorPos(new Vector2(260, 75));
+            ImGui.Image(matchProfileImage.ImGuiHandle, imageSize);
+        }
+
+        // Display the first name, last name, and "About Me" text
+        ImGui.SetCursorPos(new Vector2(260, 305));
+        ImGui.SetWindowFontScale(1.2f);
+        ImGui.Text($"{firstNameList[index]} {lastNameList[index]}");
+        ImGui.SetWindowFontScale(1f);
+
+        ImGui.SetCursorPos(new Vector2(260, 330));
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 400);
+        ImGui.TextWrapped("About Me: " + aboutMeList[index]);
+        ImGui.PopTextWrapPos();
+
+        ImGui.SetCursorPos(new Vector2(500, 80));
+        ImGui.Text("Home Server: " + homeServerList[index]);
+        ImGui.SetCursorPos(new Vector2(500, 105));
+        ImGui.Text("Discord: " + discordNameList[index]);
+        ImGui.SetCursorPos(new Vector2(500, 130));
+        ImGui.Text("Mare Code: " + mareCodeList[index]);
+
+    }
+
+    
+
+    private void ResetMatchLists()
+    {
+        if(canResetMatches)
+        {
+            selectedMatchIndex = null;
+            loadedMatches = false;
+            isLoadingMatches = false;
+            subList.Clear();
+            lastNameList.Clear();
+            homeServerList.Clear();
+            discordNameList.Clear();
+            firstNameList.Clear();
+            aboutMeList.Clear();
+            mareCodeList.Clear();
+            resetButtonString = "Refresh Matches";
+        }
+        else
+        {
+            resetButtonString = ""; //should equal you need to wait X more minutes before you can refresh matches
+        }
+        
+    }
 
 
     #endregion
