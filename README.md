@@ -1,4 +1,3 @@
-# WineFinderPlugin
+# Finding Fantasy
 
-FINDS THE WINE THIEF
-test
+Join our community and see all the about info on discord. discord.gg/thechateauxiv
