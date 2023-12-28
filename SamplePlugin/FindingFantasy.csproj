@@ -23,5 +23,6 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="3.7.300.16" />
     <PackageReference Include="AWSSDK.Lambda" Version="3.7.303.12" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.1" />
   </ItemGroup>
 </Project>

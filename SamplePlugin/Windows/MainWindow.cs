@@ -1,4 +1,7 @@
+#region library and calls
 using System;
+
+
 using System.Numerics;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Interface.Internal;
@@ -21,8 +24,11 @@ using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
 using System.Collections.Generic;
 using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
-
+#endregion
 
 
 namespace FindingFantasy.Windows;
@@ -162,6 +168,7 @@ public class ChateauResponse
 
 public class MainWindow : Window, IDisposable
 {
+    #region Variable Declaration
     private IDalamudTextureWrap LogoImage;
     private IDalamudTextureWrap likeImage;
     private IDalamudTextureWrap dislikeImage;
@@ -232,8 +239,9 @@ public class MainWindow : Window, IDisposable
     private bool hasLoadedChateauString;
     private bool attemptingChateauStringLoad;
 
+    #endregion
 
-
+    #region Main Class Setup
     public MainWindow(Plugin plugin, IDalamudTextureWrap logoImage, DalamudPluginInterface PluginInterface, IDalamudTextureWrap LikeImage, IDalamudTextureWrap DislikeImage) : base(
         "Finding Fantasy", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
@@ -265,7 +273,9 @@ public class MainWindow : Window, IDisposable
             targetProfileImage = null;
         }
     }
+    #endregion
 
+    //Main functions and UI Draw (Basically Update)
     public override void Draw()
     {
         if (isSigningIn)
@@ -843,6 +853,36 @@ public class MainWindow : Window, IDisposable
         if (!IsValidImageFormat(profileImagePath))
         {
             uploadErrorMessage = "Invalid image format. Only PNG files are accepted.";
+            Console.WriteLine(uploadErrorMessage); // Log the error
+            return;
+        }
+
+        // Check the file size (5 MB limit)
+        long fileSizeLimit = 5242880; // 5 MB in bytes
+        FileInfo fileInfo = new FileInfo(profileImagePath);
+        if (fileInfo.Length > fileSizeLimit)
+        {
+            uploadErrorMessage = "File size exceeds the 5 MB limit.";
+            Console.WriteLine(uploadErrorMessage); // Log the error
+            return;
+        }
+
+        // Check the image resolution
+        try
+        {
+            using (var image = SixLabors.ImageSharp.Image.Load(profileImagePath))
+            {
+                if (image.Width > 1080 || image.Height > 1080)
+                {
+                    uploadErrorMessage = "Image resolution exceeds 1080x1080 pixels.";
+                    Console.WriteLine(uploadErrorMessage); // Log the error
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            uploadErrorMessage = "Error loading image: " + ex.Message;
             Console.WriteLine(uploadErrorMessage); // Log the error
             return;
         }
@@ -1749,8 +1789,6 @@ public class MainWindow : Window, IDisposable
 
 
     #endregion
-
-
 
 
     #region Matching
