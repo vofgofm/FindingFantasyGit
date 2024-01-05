@@ -850,6 +850,13 @@ public class MainWindow : Window, IDisposable
             Console.WriteLine(uploadErrorMessage); // Log the error
             return;
         }
+
+        // Automatically append .png extension if not present
+        if (!profileImagePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            profileImagePath += ".png";
+        }
+
         if (!IsValidImageFormat(profileImagePath))
         {
             uploadErrorMessage = "Invalid image format. Only PNG files are accepted.";
